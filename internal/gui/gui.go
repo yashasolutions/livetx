@@ -136,8 +136,10 @@ func (g *GUI) loadDevices() {
 		deviceNames = append(deviceNames, d.ID)
 	}
 
-	g.deviceSelect.Options = deviceNames
-	g.deviceSelect.Refresh()
+	fyne.Do(func() {
+		g.deviceSelect.Options = deviceNames
+		g.deviceSelect.Refresh()
+	})
 
 	if len(devices) == 0 {
 		g.setStatus("No audio devices found. On Linux, ensure PulseAudio or PipeWire is running.")
@@ -176,11 +178,13 @@ func (g *GUI) onStart() {
 	g.isRunning = true
 	g.mu.Unlock()
 
-	g.startButton.Disable()
-	g.stopButton.Enable()
-	g.deviceSelect.Disable()
-	g.langInEntry.Disable()
-	g.langOutEntry.Disable()
+	fyne.Do(func() {
+		g.startButton.Disable()
+		g.stopButton.Enable()
+		g.deviceSelect.Disable()
+		g.langInEntry.Disable()
+		g.langOutEntry.Disable()
+	})
 
 	g.setStatus(fmt.Sprintf("Starting transcription... Output: %s", outputFile))
 	g.clearTranscript()
@@ -211,11 +215,13 @@ func (g *GUI) runTranscription(ctx context.Context, deviceID, langIn, langOut st
 		}
 		g.mu.Unlock()
 
-		g.startButton.Enable()
-		g.stopButton.Disable()
-		g.deviceSelect.Enable()
-		g.langInEntry.Enable()
-		g.langOutEntry.Enable()
+		fyne.Do(func() {
+			g.startButton.Enable()
+			g.stopButton.Disable()
+			g.deviceSelect.Enable()
+			g.langInEntry.Enable()
+			g.langOutEntry.Enable()
+		})
 	}()
 
 	client := soniox.NewClient()
@@ -356,11 +362,15 @@ func (g *GUI) runTranscription(ctx context.Context, deviceID, langIn, langOut st
 }
 
 func (g *GUI) setStatus(status string) {
-	g.statusLabel.SetText(status)
+	fyne.Do(func() {
+		g.statusLabel.SetText(status)
+	})
 }
 
 func (g *GUI) clearTranscript() {
-	g.transcriptText.SetText("")
+	fyne.Do(func() {
+		g.transcriptText.SetText("")
+	})
 }
 
 func (g *GUI) appendTranscript(event soniox.TranscriptEvent) {
@@ -370,10 +380,12 @@ func (g *GUI) appendTranscript(event soniox.TranscriptEvent) {
 	}
 
 	if event.IsFinal {
-		current := g.transcriptText.Text
-		timestamp := time.Now().Format("15:04:05")
-		newText := fmt.Sprintf("[%s] %s\n", timestamp, text)
-		g.transcriptText.SetText(current + newText)
-		g.scrollContainer.ScrollToBottom()
+		fyne.Do(func() {
+			current := g.transcriptText.Text
+			timestamp := time.Now().Format("15:04:05")
+			newText := fmt.Sprintf("[%s] %s\n", timestamp, text)
+			g.transcriptText.SetText(current + newText)
+			g.scrollContainer.ScrollToBottom()
+		})
 	}
 }
