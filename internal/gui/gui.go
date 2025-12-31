@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"sync"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/livetx/livetx/internal/audio"
@@ -27,7 +29,7 @@ type GUI struct {
 	startButton     *widget.Button
 	stopButton      *widget.Button
 	statusLabel     *widget.Label
-	transcriptText  *widget.Entry
+	transcriptText  *widget.RichText
 	scrollContainer *container.Scroll
 
 	mu             sync.Mutex
@@ -47,6 +49,23 @@ func New(apiKey string) *GUI {
 		capturer: audio.NewCapturer(),
 	}
 	return g
+}
+
+// Custom theme for transcript text
+type transcriptTheme struct {
+	fyne.Theme
+}
+
+func (t *transcriptTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	switch name {
+	case theme.ColorNameForeground:
+		return color.RGBA{R: 0x1a, G: 0x43, B: 0x78, A: 0xff} // #1a4378
+	case theme.ColorNameBackground:
+		return color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff} // white
+	case theme.ColorNameInputBackground:
+		return color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff} // white
+	}
+	return theme.DefaultTheme().Color(name, variant)
 }
 
 func (g *GUI) Run() {
@@ -97,10 +116,12 @@ func (g *GUI) setupUI() {
 
 	g.statusLabel = widget.NewLabel("Ready")
 
-	g.transcriptText = widget.NewMultiLineEntry()
+	g.transcriptText = widget.NewRichText()
 	g.transcriptText.Wrapping = fyne.TextWrapWord
-	g.transcriptText.Disable()
 
+	g.scrollContainer = container.NewVScroll(g.transcriptText)
+	g.scrollContainer.SetMinSize(fyne.NewSize(780, 400))
+	
 	g.scrollContainer = container.NewVScroll(g.transcriptText)
 	g.scrollContainer.SetMinSize(fyne.NewSize(780, 400))
 
@@ -369,7 +390,8 @@ func (g *GUI) setStatus(status string) {
 
 func (g *GUI) clearTranscript() {
 	fyne.Do(func() {
-		g.transcriptText.SetText("")
+		g.transcriptText.Segments = []widget.RichTextSegment{}
+		g.transcriptText.Refresh()
 	})
 }
 
@@ -381,10 +403,20 @@ func (g *GUI) appendTranscript(event soniox.TranscriptEvent) {
 
 	if event.IsFinal {
 		fyne.Do(func() {
-			current := g.transcriptText.Text
 			timestamp := time.Now().Format("15:04:05")
 			newText := fmt.Sprintf("[%s] %s\n", timestamp, text)
-			g.transcriptText.SetText(current + newText)
+			
+			// Create a text segment with custom color
+			segment := &widget.TextSegment{
+				Text: newText,
+				Style: widget.RichTextStyle{
+					ColorName: theme.ColorNameForeground,
+					TextStyle: fyne.TextStyle{},
+				},
+			}
+			
+			g.transcriptText.Segments = append(g.transcriptText.Segments, segment)
+			g.transcriptText.Refresh()
 			g.scrollContainer.ScrollToBottom()
 		})
 	}
