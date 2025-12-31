@@ -406,13 +406,39 @@ func (g *GUI) appendTranscript(event soniox.TranscriptEvent) {
 			timestamp := time.Now().Format("15:04:05")
 			newText := fmt.Sprintf("[%s] %s\n", timestamp, text)
 			
-			// Create a text segment with custom color
-			segment := &widget.TextSegment{
-				Text: newText,
-				Style: widget.RichTextStyle{
-					ColorName: theme.ColorNameForeground,
-					TextStyle: fyne.TextStyle{},
-				},
+			// Determine if this is translated text by checking if we have source language info
+			isTranslated := false
+			if event.Raw != nil && len(event.Raw.Tokens) > 0 {
+				for _, token := range event.Raw.Tokens {
+					if token.SourceLanguage != "" && token.SourceLanguage != token.Language {
+						isTranslated = true
+						break
+					}
+				}
+			}
+			
+			// Create a text segment with appropriate styling
+			var segment widget.RichTextSegment
+			if isTranslated {
+				// Yellow background for translated text
+				segment = &widget.TextSegment{
+					Text: newText,
+					Style: widget.RichTextStyle{
+						ColorName: theme.ColorNameForeground,
+						Background: color.RGBA{R: 0xff, G: 0xff, B: 0x99, A: 0xff}, // Light yellow
+						TextStyle: fyne.TextStyle{},
+					},
+				}
+			} else {
+				// White background with blue text for source text
+				segment = &widget.TextSegment{
+					Text: newText,
+					Style: widget.RichTextStyle{
+						ColorName: theme.ColorNameForeground,
+						Background: color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, // White
+						TextStyle: fyne.TextStyle{},
+					},
+				}
 			}
 			
 			g.transcriptText.Segments = append(g.transcriptText.Segments, segment)
