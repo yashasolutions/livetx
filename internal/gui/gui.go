@@ -420,22 +420,20 @@ func (g *GUI) appendTranscript(event soniox.TranscriptEvent) {
 			// Create a text segment with appropriate styling
 			var segment widget.RichTextSegment
 			if isTranslated {
-				// Yellow background for translated text
+				// Orange/amber color for translated text
 				segment = &widget.TextSegment{
 					Text: newText,
 					Style: widget.RichTextStyle{
-						ColorName: theme.ColorNameForeground,
-						Background: color.RGBA{R: 0xff, G: 0xff, B: 0x99, A: 0xff}, // Light yellow
-						TextStyle: fyne.TextStyle{},
+						ColorName: theme.ColorNameWarning, // Orange/amber for translations
+						TextStyle: fyne.TextStyle{Italic: true},
 					},
 				}
 			} else {
-				// White background with blue text for source text
+				// Blue color for source text
 				segment = &widget.TextSegment{
 					Text: newText,
 					Style: widget.RichTextStyle{
-						ColorName: theme.ColorNameForeground,
-						Background: color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, // White
+						ColorName: theme.ColorNamePrimary, // Blue for source text
 						TextStyle: fyne.TextStyle{},
 					},
 				}
