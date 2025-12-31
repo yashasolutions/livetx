@@ -10,6 +10,7 @@ A CLI tool that captures system audio output (loopback/monitor), streams it to S
 - Partial transcripts shown in console
 - Final transcripts saved to file with timestamps
 - Graceful shutdown on Ctrl+C
+- GUI mode with device selection and scrolling transcript display
 
 ## Requirements
 
@@ -17,5 +18,8 @@ A CLI tool that captures system audio output (loopback/monitor), streams it to S
 - Linux: PipeWire (pw-record) or PulseAudio (parec)
 - Soniox API key
 
-## Installation
+### GUI Dependencies
 
+The GUI is built with [Fyne](https://fyne.io/), which requires additional system dependencies.
+
+**Linux (Debian/Ubuntu):**
