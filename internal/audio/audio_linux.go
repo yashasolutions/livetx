@@ -23,11 +23,17 @@ func newPlatformCapturer() AudioCapturer {
 }
 
 func (c *linuxCapturer) ListDevices() ([]Device, error) {
-	// Try pactl first (works with both PulseAudio and PipeWire-pulse)
-	cmd := exec.Command("pactl", "list", "short", "sources")
-	output, err := cmd.Output()
-	if err == nil {
-		return parsePactlSources(string(output)), nil
+	// Prefer the long-form listing: it carries friendly Descriptions and
+	// tells us which sources are sink monitors (i.e. "what you hear").
+	if out, err := exec.Command("pactl", "list", "sources").Output(); err == nil {
+		if devices := parsePactlLongSources(string(out)); len(devices) > 0 {
+			return devices, nil
+		}
+	}
+
+	// Fall back to the short listing (IDs only, no friendly labels).
+	if out, err := exec.Command("pactl", "list", "short", "sources").Output(); err == nil {
+		return parsePactlShortSources(string(out)), nil
 	}
 
 	// If pactl fails, try pw-cli
@@ -39,16 +45,73 @@ func (c *linuxCapturer) ListDevices() ([]Device, error) {
 	return nil, fmt.Errorf("neither pactl nor pw-cli available: install pulseaudio-utils or pipewire")
 }
 
-func parsePactlSources(output string) []Device {
+// parsePactlLongSources parses `pactl list sources` into devices with
+// human-friendly labels that distinguish output monitors (what you hear)
+// from microphone inputs.
+func parsePactlLongSources(output string) []Device {
+	var devices []Device
+	var name, description string
+	isMonitor := false
+
+	flush := func() {
+		if name == "" {
+			return
+		}
+		devices = append(devices, Device{
+			ID:   name,
+			Name: friendlySourceLabel(name, description, isMonitor),
+		})
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "Source #"):
+			flush()
+			name, description, isMonitor = "", "", false
+		case strings.HasPrefix(trimmed, "Name:"):
+			name = strings.TrimSpace(strings.TrimPrefix(trimmed, "Name:"))
+		case strings.HasPrefix(trimmed, "Description:"):
+			description = strings.TrimSpace(strings.TrimPrefix(trimmed, "Description:"))
+		case strings.HasPrefix(trimmed, "Monitor of Sink:"):
+			val := strings.TrimSpace(strings.TrimPrefix(trimmed, "Monitor of Sink:"))
+			if val != "" && val != "n/a" {
+				isMonitor = true
+			}
+		}
+	}
+	flush()
+	return devices
+}
+
+// friendlySourceLabel builds a display label with an emoji and a plain-English
+// hint about whether the source captures output audio or a microphone.
+func friendlySourceLabel(name, description string, isMonitor bool) string {
+	label := description
+	if label == "" {
+		label = name
+	}
+	if isMonitor || strings.HasSuffix(name, ".monitor") {
+		// e.g. "Monitor of EPOS IMPACT 60 Analog Stereo" -> "EPOS IMPACT 60 Analog Stereo"
+		label = strings.TrimPrefix(label, "Monitor of ")
+		return "🔊 " + label + " (output — what you hear)"
+	}
+	return "🎙 " + label + " (microphone)"
+}
+
+func parsePactlShortSources(output string) []Device {
 	var devices []Device
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := scanner.Text()
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {
+			name := fields[1]
 			devices = append(devices, Device{
-				ID:   fields[1],
-				Name: fields[1],
+				ID:   name,
+				Name: friendlySourceLabel(name, "", strings.HasSuffix(name, ".monitor")),
 			})
 		}
 	}
@@ -71,7 +134,18 @@ func (c *linuxCapturer) Start(cfg CaptureConfig, audioCh chan<- []byte) error {
 			"-",
 		}
 		if cfg.DeviceID != "" {
-			args = append([]string{"--target", cfg.DeviceID}, args...)
+			// Device IDs come from `pactl` as PulseAudio source names, but
+			// pw-record's --target matches PipeWire node names. A ".monitor"
+			// source (what an output sink plays) has no PipeWire node of that
+			// name, so pw-record would silently fall back to the default
+			// source (the mic). Target the underlying sink node instead and
+			// tell pw-record to capture the sink's monitor.
+			target := cfg.DeviceID
+			if strings.HasSuffix(target, ".monitor") {
+				target = strings.TrimSuffix(target, ".monitor")
+				args = append([]string{"-P", "stream.capture.sink=true"}, args...)
+			}
+			args = append([]string{"--target", target}, args...)
 		}
 		cmd = exec.Command("pw-record", args...)
 	} else if _, err := exec.LookPath("parec"); err == nil {

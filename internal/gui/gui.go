@@ -34,6 +34,7 @@ type GUI struct {
 
 	mu             sync.Mutex
 	devices        []audio.Device
+	labelToID      map[string]string
 	selectedDevice string
 	apiKey         string
 	isRunning      bool
@@ -82,7 +83,12 @@ func (g *GUI) Run() {
 func (g *GUI) setupUI() {
 	g.deviceSelect = widget.NewSelect([]string{}, func(selected string) {
 		g.mu.Lock()
-		g.selectedDevice = selected
+		// The select shows friendly labels; map back to the real device ID.
+		if id, ok := g.labelToID[selected]; ok {
+			g.selectedDevice = id
+		} else {
+			g.selectedDevice = selected
+		}
 		g.mu.Unlock()
 	})
 	g.deviceSelect.PlaceHolder = "Select audio device..."
@@ -148,14 +154,21 @@ func (g *GUI) loadDevices() {
 		return
 	}
 
-	g.mu.Lock()
-	g.devices = devices
-	g.mu.Unlock()
-
+	labelToID := make(map[string]string, len(devices))
 	var deviceNames []string
 	for _, d := range devices {
-		deviceNames = append(deviceNames, d.ID)
+		label := d.Name
+		if label == "" {
+			label = d.ID
+		}
+		labelToID[label] = d.ID
+		deviceNames = append(deviceNames, label)
 	}
+
+	g.mu.Lock()
+	g.devices = devices
+	g.labelToID = labelToID
+	g.mu.Unlock()
 
 	fyne.Do(func() {
 		g.deviceSelect.Options = deviceNames

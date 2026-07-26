@@ -1,10 +1,30 @@
-
-.aider*
+# Secrets / local config
 .env
+.env.local
+.aider*
 
-# build artifacts
-livetx
-livetx-gui
+# Build artifacts
+/livetx
+/livetx-gui
+/dist/
+/build/
+*.exe
+*.app/
 
-# app output
+# App output
 transcript-*.txt
+
+# Go
+*.test
+*.out
+coverage.*
+vendor/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# macOS
+.DS_Store

@@ -7,7 +7,7 @@ A real-time audio transcription application with GUI and CLI interfaces, powered
 - Go 1.19 or later
 - Audio capture dependencies (platform-specific):
   - **Linux**: PulseAudio or PipeWire with `pactl` and/or `pw-record`
-  - **macOS**: Core Audio (built-in)
+  - **macOS**: `ffmpeg` (audio capture) + optional BlackHole for system audio — see [README-macos.md](README-macos.md) for a one-command setup
   - **Windows**: WASAPI (built-in)
 
 ## Installation
