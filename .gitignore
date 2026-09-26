@@ -32,3 +32,5 @@ vendor/
 
 # macOS
 .DS_Store
+
+*.vtt
