@@ -19,6 +19,11 @@ type Config struct {
 	LangOut    string
 	SampleRate int
 	Channels   int
+
+	// OnTranscript, if set, is called for every transcript event in addition to
+	// the console and file sinks. Used by alternative frontends (e.g. the web
+	// UI) to stream transcripts to a client. It must not block for long.
+	OnTranscript func(soniox.TranscriptEvent)
 }
 
 // App orchestrates the audio capture and transcription
@@ -159,6 +164,9 @@ func (a *App) Run(ctx context.Context) error {
 					return
 				}
 				a.consoleSink.Write(event)
+				if a.config.OnTranscript != nil {
+					a.config.OnTranscript(event)
+				}
 				if err := a.fileSink.Write(event); err != nil {
 					select {
 					case errCh <- fmt.Errorf("file write error: %w", err):

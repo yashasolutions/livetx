@@ -6,10 +6,14 @@
 # Build artifacts
 /livetx
 /livetx-gui
+/livetx-web
 /dist/
 /build/
 *.exe
 *.app/
+
+# Local build tooling (auto-downloaded by `make web-assets`)
+/.tools/
 
 # App output
 transcript-*.txt

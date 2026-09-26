@@ -4,11 +4,25 @@
 
 GUI_BIN  := livetx-gui
 CLI_BIN  := livetx
+WEB_BIN  := livetx-web
 GUI_PKG  := ./cmd/livetx-gui
 CLI_PKG  := ./cmd/livetx
+WEB_PKG  := ./cmd/livetx-web
 
 GO       ?= go
 DIST     := dist
+
+# Build-time tooling for the web UI (not needed to `go build` — generated .x.go
+# and the compiled app.css are committed; only regenerating them needs these).
+TOOLS     := .tools
+TAILWIND  := $(TOOLS)/tailwindcss
+GSX       := github.com/gsxhq/gsx/cmd/gsx@latest
+# Map uname to the Tailwind standalone release asset name.
+UNAME_S   := $(shell uname -s)
+UNAME_M   := $(shell uname -m)
+TW_OS     := $(if $(filter Darwin,$(UNAME_S)),macos,linux)
+TW_ARCH   := $(if $(filter arm64 aarch64,$(UNAME_M)),arm64,x64)
+TW_ASSET  := tailwindcss-$(TW_OS)-$(TW_ARCH)
 
 .DEFAULT_GOAL := help
 
@@ -25,6 +39,29 @@ gui: ## Build the GUI app (needs a C toolchain: Xcode CLT on macOS)
 cli: ## Build the CLI app
 	$(GO) build -o $(CLI_BIN) $(CLI_PKG)
 
+.PHONY: web
+web: ## Build the web UI app (pure Go, no cgo — opens in Chrome app mode)
+	CGO_ENABLED=0 $(GO) build -o $(WEB_BIN) $(WEB_PKG)
+
+## ---- Web UI assets (gsx + Tailwind) --------------------------------------
+# Regenerating assets is a dev step; the outputs (ui/*.x.go, cmd/livetx-web/web/
+# app.css) are committed so plain `go build`/`make web` needs none of this.
+
+$(TAILWIND):
+	@mkdir -p $(TOOLS)
+	@echo "Downloading Tailwind CLI ($(TW_ASSET))..."
+	curl -sSL -o $(TAILWIND) https://github.com/tailwindlabs/tailwindcss/releases/latest/download/$(TW_ASSET)
+	chmod +x $(TAILWIND)
+
+.PHONY: gen
+gen: ## Regenerate gsx components (.gsx -> .x.go)
+	$(GO) run $(GSX) generate
+
+.PHONY: web-assets
+web-assets: gen $(TAILWIND) ## Regenerate the web UI CSS (gsx generate + Tailwind build)
+	$(TAILWIND) -i web/gsxui.css -o cmd/livetx-web/web/app.css --minify
+	@echo "Rebuilt cmd/livetx-web/web/app.css"
+
 ## ---- Run ------------------------------------------------------------------
 
 .PHONY: run
@@ -34,6 +71,10 @@ run: gui ## Build and launch the GUI
 .PHONY: run-cli
 run-cli: cli ## Build the CLI and list audio devices
 	./$(CLI_BIN) -list-devices
+
+.PHONY: run-web
+run-web: web ## Build and launch the web UI (Chrome app-mode window)
+	./$(WEB_BIN)
 
 ## ---- Cross-compile --------------------------------------------------------
 # The CLI is pure Go and cross-compiles anywhere. The GUI uses cgo (Fyne/OpenGL)
@@ -46,6 +87,14 @@ cross-cli: ## Cross-compile the CLI for macOS (arm64/amd64) and Linux into dist/
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(DIST)/$(CLI_BIN)-darwin-amd64 $(CLI_PKG)
 	GOOS=linux  GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(DIST)/$(CLI_BIN)-linux-amd64  $(CLI_PKG)
 	@echo "Built CLI binaries in $(DIST)/"
+
+.PHONY: cross-web
+cross-web: ## Cross-compile the web UI for macOS (arm64/amd64) and Linux into dist/ (no cgo, no toolchain)
+	@mkdir -p $(DIST)
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 $(GO) build -o $(DIST)/$(WEB_BIN)-darwin-arm64 $(WEB_PKG)
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(DIST)/$(WEB_BIN)-darwin-amd64 $(WEB_PKG)
+	GOOS=linux  GOARCH=amd64 CGO_ENABLED=0 $(GO) build -o $(DIST)/$(WEB_BIN)-linux-amd64  $(WEB_PKG)
+	@echo "Built web UI binaries in $(DIST)/"
 
 ## ---- Dependencies & quality ----------------------------------------------
 
@@ -82,7 +131,7 @@ setup-macos: ## Install all macOS dependencies and build (see README-macos.md)
 
 .PHONY: clean
 clean: ## Remove built binaries and dist/
-	rm -f $(GUI_BIN) $(CLI_BIN)
+	rm -f $(GUI_BIN) $(CLI_BIN) $(WEB_BIN)
 	rm -rf $(DIST)
 
 .PHONY: help
