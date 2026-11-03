@@ -128,6 +128,10 @@ func (c *linuxCapturer) Start(cfg CaptureConfig, audioCh chan<- []byte) error {
 	// Prefer pw-record if available
 	if _, err := exec.LookPath("pw-record"); err == nil {
 		args := []string{
+			// --raw is required: since PipeWire 1.6.10, pw-record writing to
+			// stdout ("-") defaults to a Sun AU container (".snd" header +
+			// big-endian samples), which Soniox decodes as s16le noise.
+			"--raw",
 			"--format", "s16",
 			"--rate", sampleRate,
 			"--channels", channels,
